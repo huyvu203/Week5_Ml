@@ -1,0 +1,14 @@
+graph TD
+  %% Training Phase
+  DS1[Object_Storage_GCS] --> FE[Feature_Engineering]
+  FE --> ForecastAutoML[AutoML_Tabular_Forecasting]
+
+  %% User Prediction Phase
+  U[User_Request_Script_on_Laptop] --> LB[API_Gateway]
+  LB --> ForecastInfer[Forecasting_Inference_Endpoint]
+  ForecastInfer --> Result[Prediction]
+  Result --> U
+
+  %% Platform Services
+  Observ[Monitoring] -.-> ForecastInfer
+  Sec[Security] -.-> LB

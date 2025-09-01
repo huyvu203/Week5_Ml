@@ -1,0 +1,28 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.env
+.venv/
+venv/
+
+# Poetry
+.poetry/
+
+# Jupyter
+.ipynb_checkpoints
+
+# Logs
+logs/
+*.log
+
+# Data (keep raw/large data out of repo)
+data/
+data/**
+
+# Google credentials
+*.json
+credentials/
+
+# OS
+.DS_Store
