@@ -112,6 +112,40 @@ def check_timestamp_format(df):
     
     return df
 
+def ensure_timestamp_column(df, col='datetimeUtc'):
+    """
+    Parse and enforce RFC3339 timestamps in `col` for AutoML compatibility.
+    - Coerce invalid values to NaT, drop those rows.
+    - Format to 'YYYY-MM-DDTHH:MM:SSZ' (UTC).
+    - Ensure proper datetime parsing and validation.
+    """
+    logger.info(f"Ensuring proper timestamp format for AutoML in column '{col}'")
+    
+    # Normalize and parse - handle both string and existing datetime types
+    if df[col].dtype == 'object':
+        # If it's string, clean and parse
+        df[col] = pd.to_datetime(df[col].astype(str).str.strip(), utc=True, errors='coerce')
+    else:
+        # If already datetime, ensure UTC
+        df[col] = pd.to_datetime(df[col], utc=True, errors='coerce')
+    
+    # Report and drop unparsable rows
+    invalid_count = int(df[col].isna().sum())
+    if invalid_count > 0:
+        logger.warning(f"{invalid_count} rows have unparsable '{col}'; dropping them before export")
+        initial_rows = len(df)
+        df = df.loc[df[col].notna()].copy()
+        logger.info(f"Dropped {initial_rows - len(df)} rows with invalid timestamps")
+    
+    # Format as RFC3339 with Z (required for AutoML)
+    df[col] = df[col].dt.strftime("%Y-%m-%dT%H:%M:%SZ")
+    
+    # Validate the final format
+    sample_timestamps = df[col].head(3).tolist()
+    logger.info(f"Sample formatted timestamps: {sample_timestamps}")
+    
+    return df
+
 def handle_missing_values(df):
     """Handle missing values using scikit-learn."""
     logger.info("Handling missing values")
@@ -162,33 +196,22 @@ def remove_duplicates(df):
     
     return df_deduped
 
-def sort_data(df):
-    """Sort data by location_id and datetimeUtc."""
-    logger.info("Sorting data by location_id and datetimeUtc")
-    
-    # Convert datetimeUtc back to datetime for sorting
-    df['datetimeUtc_sort'] = pd.to_datetime(df['datetimeUtc'])
-    
-    # Sort by location_id and datetime
-    df_sorted = df.sort_values(['location_id', 'datetimeUtc_sort'])
-    
-    # Drop the temporary sorting column
-    df_sorted = df_sorted.drop('datetimeUtc_sort', axis=1)
-    
-    logger.info("Data sorted successfully")
-    return df_sorted
-
 def save_cleaned_data(df, output_path):
-    """Save the cleaned data as UTF-8 CSV."""
+    """Save the cleaned data as UTF-8 CSV without index for AutoML compatibility."""
     logger.info(f"Saving cleaned data to {output_path}")
     
     try:
         # Ensure the output directory exists
         os.makedirs(os.path.dirname(output_path), exist_ok=True)
         
-        # Save as UTF-8 CSV
+        # Save as UTF-8 CSV without index (critical for AutoML)
         df.to_csv(output_path, index=False, encoding='utf-8')
         logger.info(f"Cleaned data saved successfully. Final shape: {df.shape}")
+        
+        # Validate the saved file for AutoML compatibility
+        logger.info("Validating saved file for AutoML compatibility...")
+        test_df = pd.read_csv(output_path, nrows=5)
+        logger.info(f"Column dtypes in saved file: {test_df.dtypes.to_dict()}")
         
         # Log final statistics
         logger.info("Final data summary:")
@@ -232,16 +255,16 @@ def main():
     # Step 4: Check and fix timestamp format
     df = check_timestamp_format(df)
     
+    # Step 4.5: Ensure timestamp column is properly formatted for AutoML
+    df = ensure_timestamp_column(df, 'datetimeUtc')
+    
     # Step 5: Handle missing values
     df = handle_missing_values(df)
     
     # Step 6: Remove duplicates
     df = remove_duplicates(df)
     
-    # Step 7: Sort data
-    df = sort_data(df)
-    
-    # Step 8: Save cleaned data
+    # Step 7: Save cleaned data (keeping original data order)
     save_cleaned_data(df, output_file)
     
     logger.info("Preprocessing completed successfully!")

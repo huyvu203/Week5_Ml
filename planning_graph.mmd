@@ -1,14 +1,18 @@
 graph TD
-  %% Training Phase
-  DS1[Object_Storage_GCS] --> FE[Feature_Engineering]
-  FE --> ForecastAutoML[AutoML_Tabular_Forecasting]
+  Upload[Upload_Data_from_External] --> DS1
+  U[User_Request_Script_on_Laptop] --> LB
 
-  %% User Prediction Phase
-  U[User_Request_Script_on_Laptop] --> LB[API_Gateway]
-  LB --> ForecastInfer[Forecasting_Inference_Endpoint]
+  subgraph "Google Cloud Vertex AI"
+    direction TB
+    DS1[Object_Storage_GCS] --> FE[Feature_Engineering]
+    FE --> ForecastAutoML[AutoML_Tabular_Forecasting]
+
+    LB[API_Gateway] --> ForecastInfer[Forecasting_Inference_Endpoint]
+
+    %% Platform Services (inside cloud)
+    Observ[Monitoring] -.-> ForecastInfer
+    Sec[Security] -.-> LB
+  end
+
   ForecastInfer --> Result[Prediction]
   Result --> U
-
-  %% Platform Services
-  Observ[Monitoring] -.-> ForecastInfer
-  Sec[Security] -.-> LB
