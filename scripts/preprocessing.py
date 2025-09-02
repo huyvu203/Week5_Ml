@@ -38,8 +38,8 @@ def remove_unnecessary_columns(df):
     """Keep only relevant columns for forecasting."""
     logger.info("Removing unnecessary columns")
     
-    # Define columns to keep
-    columns_to_keep = ['location_id', 'datetimeUtc', 'value', 'latitude', 'longitude']
+    # Define columns to keep (removed latitude and longitude)
+    columns_to_keep = ['location_id', 'datetimeUtc', 'value']
     
     # Check if all required columns exist
     missing_cols = [col for col in columns_to_keep if col not in df.columns]
@@ -100,10 +100,10 @@ def check_timestamp_format(df):
         # Try to parse datetimeUtc column
         df['datetimeUtc'] = pd.to_datetime(df['datetimeUtc'])
         
-        # Convert to ISO 8601 format with UTC timezone
-        df['datetimeUtc'] = df['datetimeUtc'].dt.strftime('%Y-%m-%dT%H:%M:%SZ')
+        # Convert to RFC 3339 format with microseconds and explicit UTC offset
+        df['datetimeUtc'] = df['datetimeUtc'].dt.strftime('%Y-%m-%dT%H:%M:%S.%f+00:00')
         
-        logger.info("Timestamp format validated and standardized to ISO 8601")
+        logger.info("Timestamp format validated and standardized to RFC 3339 with microseconds")
         logger.info(f"Date range: {df['datetimeUtc'].min()} to {df['datetimeUtc'].max()}")
         
     except Exception as e:
@@ -114,12 +114,12 @@ def check_timestamp_format(df):
 
 def ensure_timestamp_column(df, col='datetimeUtc'):
     """
-    Parse and enforce RFC3339 timestamps in `col` for AutoML compatibility.
+    Parse and enforce RFC3339 timestamps with microseconds in `col` for AutoML compatibility.
     - Coerce invalid values to NaT, drop those rows.
-    - Format to 'YYYY-MM-DDTHH:MM:SSZ' (UTC).
+    - Format to 'YYYY-MM-DDTHH:MM:SS.ffffff+00:00' (UTC with microseconds).
     - Ensure proper datetime parsing and validation.
     """
-    logger.info(f"Ensuring proper timestamp format for AutoML in column '{col}'")
+    logger.info(f"Ensuring proper timestamp format with microseconds for AutoML in column '{col}'")
     
     # Normalize and parse - handle both string and existing datetime types
     if df[col].dtype == 'object':
@@ -137,8 +137,8 @@ def ensure_timestamp_column(df, col='datetimeUtc'):
         df = df.loc[df[col].notna()].copy()
         logger.info(f"Dropped {initial_rows - len(df)} rows with invalid timestamps")
     
-    # Format as RFC3339 with Z (required for AutoML)
-    df[col] = df[col].dt.strftime("%Y-%m-%dT%H:%M:%SZ")
+    # Format as RFC3339 with microseconds and explicit UTC offset (required for AutoML)
+    df[col] = df[col].dt.strftime("%Y-%m-%dT%H:%M:%S.%f+00:00")
     
     # Validate the final format
     sample_timestamps = df[col].head(3).tolist()
@@ -157,8 +157,8 @@ def handle_missing_values(df):
         if count > 0:
             logger.info(f"  {col}: {count} ({count/len(df)*100:.2f}%)")
     
-    # For numeric columns (latitude, longitude, value), use median imputation
-    numeric_cols = ['latitude', 'longitude', 'value']
+    # For numeric columns (value only, latitude/longitude removed), use median imputation
+    numeric_cols = ['value']
     
     for col in numeric_cols:
         if col in df.columns:
